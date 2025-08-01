@@ -1,0 +1,216 @@
+on:
+  workflow_dispatch:
+  push:
+
+name: CI/CD
+jobs:
+  prepare:
+    runs-on: self-hosted-macos
+    env:
+      LANG: en_US.UTF-8
+    outputs:
+      deps-key: ${{ steps.cache.outputs.deps-key }}
+      prebuild-cache-key: ${{ steps.prebuild-cache.outputs.cache-key }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set GRADLE_HOME
+        run: echo "GRADLE_HOME=/Volumes/External/gradle" >> $GITHUB_ENV
+
+      - name: Set ANDROID_SDK_ROOT
+        run: echo "ANDROID_SDK_ROOT=/Volumes/External/android" >> $GITHUB_ENV
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Clean up existing Android Virtual Devices
+        run: |
+          echo "Cleaning up existing AVDs..."
+
+          avdmanager list avd | grep "Name:" | awk '{print $2}' | while read avd_name; do
+            if [ -n "$avd_name" ]; then
+              echo "Deleting AVD: $avd_name"
+              avdmanager delete avd --name "$avd_name" || echo "Failed to delete AVD: $avd_name"
+            fi
+          done
+          echo "AVD cleanup completed"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-download-url: "https://github.com/oven-sh/bun/releases/latest/download/bun-darwin-aarch64.zip"
+
+      - name: Generate cache keys
+        id: cache
+        run: |
+          # Generate cache key for dependencies only
+          echo "deps-key=deps-$(shasum -a 256 package.json bun.lock scripts/postinstall.js | shasum -a 256 | cut -d' ' -f1)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun/install/cache
+            ~/.bun/bin
+          key: ${{ steps.cache.outputs.deps-key }}
+          restore-keys: |
+            deps-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Optimize cache sizes
+        run: |
+          echo "Since we're running on the same machine, we only need to cache dependencies and prebuild artifacts."
+          echo "Other build artifacts persist between runs on the same machine."
+
+      - name: Generate prebuild cache key
+        id: prebuild-cache
+        run: |
+          echo "cache-key=prebuild-$(bunx @expo/fingerprint@latest ./ | jq -r '.hash')" >> $GITHUB_OUTPUT
+
+      - name: Reset iOS simulators
+        run: SNAPSHOT_FORCE_DELETE=yes fastlane snapshot reset_simulators --ios_version 18.5
+
+      - name: Cache prebuild
+        id: prebuild-cache-restore
+        uses: actions/cache@v4
+        with:
+          path: |
+            android
+            ios
+            .expo
+          key: ${{ steps.prebuild-cache.outputs.cache-key }}
+          restore-keys: |
+            prebuild-
+
+      - name: Prebuild project
+        if: steps.prebuild-cache-restore.outputs.cache-hit != 'true'
+        run: bunx expo prebuild --clean
+
+      - name: Monitor cache sizes
+        run: |
+          echo "=== Cache Size Report ==="
+          echo "Dependencies cache:"
+          du -sh node_modules 2>/dev/null || echo "No node_modules"
+          du -sh ~/.bun/install/cache 2>/dev/null || echo "No Bun cache"
+          echo ""
+          echo "Prebuild cache:"
+          du -sh android 2>/dev/null || echo "No Android prebuild"
+          du -sh ios 2>/dev/null || echo "No iOS prebuild"
+          du -sh .expo 2>/dev/null || echo "No Expo cache"
+          echo "========================"
+
+  deploy:
+    needs: prepare
+    strategy:
+      matrix:
+        platform: [ios, android]
+    runs-on: self-hosted-macos
+    env:
+      LANG: en_US.UTF-8
+      ENVIRONMENT: "production"
+      NODE_ENV: "production"
+      BABEL_ENV: "production"
+      APP_VARIANT: "release"
+    steps:
+      - name: Check for EXPO_TOKEN
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "You must provide an EXPO_TOKEN secret linked to this project's Expo account in this repo's secrets. Learn more: https://docs.expo.dev/eas-update/github-actions"
+            exit 1
+          fi
+
+      - name: Set GRADLE_HOME
+        if: matrix.platform == 'android'
+        run: echo "GRADLE_HOME=/Volumes/External/gradle" >> $GITHUB_ENV
+
+      - name: Set ANDROID_SDK_ROOT
+        if: matrix.platform == 'android'
+        run: echo "ANDROID_SDK_ROOT=/Volumes/External/android" >> $GITHUB_ENV
+
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        if: matrix.platform == 'android'
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-download-url: "https://github.com/oven-sh/bun/releases/latest/download/bun-darwin-aarch64.zip"
+
+      - name: Install EAS CLI globally
+        run: bun install --global eas-cli
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          expo-version: latest
+          packager: bun
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            ~/.bun/install/cache
+            ~/.bun/bin
+          key: ${{ needs.prepare.outputs.deps-key }}
+          restore-keys: |
+            deps-
+
+      - name: Restore prebuild cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            android
+            ios
+            .expo
+          key: ${{ needs.prepare.outputs.prebuild-cache-key }}
+          restore-keys: |
+            prebuild-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: |
+          echo "Building with production profile"
+          eas build --local --non-interactive --platform ${{ matrix.platform }} --profile production
+
+      - name: Submit
+        run: |
+          if [[ "${{ matrix.platform }}" == "android" ]]; then
+            # Find the latest built Android artifact
+            BUILD_FILE=$(find ./build-* -name "*.aab" -o -name "*.apk" | sort -r | head -1)
+          else
+            # Find the latest built iOS artifact
+            BUILD_FILE=$(find ./build-* -name "*.ipa" | sort -r | head -1)
+          fi
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Error: No build artifact found for ${{ matrix.platform }}"
+            exit 1
+          fi
+
+          echo "Found build file: $BUILD_FILE"
+
+          echo "Submitting with production profile"
+          eas submit --non-interactive --platform ${{ matrix.platform }} --path "$BUILD_FILE" --no-wait --profile production

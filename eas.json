@@ -1,0 +1,23 @@
+{
+  "cli": {
+    "version": ">= 16.17.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EAS_BUILD": "true"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "jasper.aelvoet@me.com",
+        "appleTeamId": "6TX949S8S5",
+        "ascAppId": "6749456473"
+      }
+    }
+  }
+}
