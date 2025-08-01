@@ -4,8 +4,9 @@ import { LineChart } from "react-native-gifted-charts";
 
 interface PriceData {
   value: number;
-  label: string;
+  label?: string;
   date: Date;
+  showVerticalLine?: boolean;
 }
 
 const formatDate = (date: Date) => {
@@ -73,10 +74,14 @@ export default function Index() {
 
       const formattedData = allPrices.map((item: any) => {
         const date = new Date(item.dateTime);
+        const isHour = date.getMinutes() === 0;
         return {
           value: item.price,
-          label: `${date.getHours().toString().padStart(2, "0")}:00`,
+          label: isHour
+            ? `${date.getHours().toString().padStart(2, "0")}:00`
+            : undefined,
           date: date,
+          showVerticalLine: isHour,
         };
       });
 
@@ -167,11 +172,14 @@ export default function Index() {
               thickness={3}
               isAnimated={true}
               animationDuration={1200}
-              curved={true}
-              showVerticalLines={true}
+              showVerticalLines={false}
               verticalLinesColor="#f0f0f0"
-              spacing={Math.max(
+              verticalLinesSpacing={Math.max(
                 20,
+                Math.floor((width - 120) / Math.max(priceHistory.length - 1, 1))
+              )}
+              spacing={Math.max(
+                30,
                 Math.floor((width - 120) / Math.max(priceHistory.length - 1, 1))
               )}
               initialSpacing={10}
@@ -203,6 +211,8 @@ export default function Index() {
               textColor="#333"
               textFontSize={12}
               yAxisOffset={0}
+              labelsExtraHeight={20}
+              xAxisTextNumberOfLines={2}
             />
           </View>
 
