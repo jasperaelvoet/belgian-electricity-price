@@ -1,6 +1,7 @@
+import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, LayoutChangeEvent, Text, View } from "react-native";
-import { LineChart } from "react-native-gifted-charts";
+import { CurveType, LineChart } from "react-native-gifted-charts";
 
 interface PriceData {
   value: number;
@@ -80,12 +81,13 @@ export default function Index() {
 
       const formattedData = allPrices.map((item: any) => {
         const date = new Date(item.dateTime);
-        const isHour = date.getMinutes() === 0;
+        const isHalfHour = date.getMinutes() === 0 || date.getMinutes() === 30;
         return {
           value: item.price,
-          label: isHour ? `${date.getHours().toString().padStart(2, "0")}:00` : undefined,
+          label: isHalfHour
+            ? `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+            : undefined,
           date: date,
-          showVerticalLine: isHour,
         };
       });
 
@@ -96,6 +98,7 @@ export default function Index() {
       );
     } finally {
       setLoading(false);
+      SplashScreen.hideAsync();
     }
   };
 
@@ -108,7 +111,7 @@ export default function Index() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" color="#4484B2" />
+        <ActivityIndicator size="large" color="#EA580C" />
         <Text className="mt-4 text-gray-600">Loading electricity prices...</Text>
       </View>
     );
@@ -116,30 +119,71 @@ export default function Index() {
 
   const minPrice = priceHistory.length > 0 ? Math.min(...priceHistory.map((p) => p.value)) : 0;
   const maxPrice = priceHistory.length > 0 ? Math.max(...priceHistory.map((p) => p.value)) : 0;
-  const avgPrice =
-    priceHistory.length > 0
-      ? priceHistory.reduce((sum, p) => sum + p.value, 0) / priceHistory.length
-      : 0;
+
+  const getCurrentDataPoint = () => {
+    if (priceHistory.length === 0) return null;
+
+    const now = new Date();
+    let closestIndex = -1;
+    let smallestDiff = Infinity;
+
+    for (let i = 0; i < priceHistory.length; i++) {
+      const diff = Math.abs(now.getTime() - priceHistory[i].date.getTime());
+      if (diff < smallestDiff) {
+        smallestDiff = diff;
+        closestIndex = i;
+      }
+    }
+
+    if (closestIndex === -1) return null;
+
+    return {
+      index: closestIndex,
+      price: priceHistory[closestIndex].value,
+    };
+  };
+
+  const currentDataPoint = getCurrentDataPoint();
+  const currentPrice = currentDataPoint ? currentDataPoint.price : 0;
+  const currentPriceIndex = currentDataPoint ? currentDataPoint.index : -1;
+
+  // Filter data to include 2 previous, current, and all future data points
+  const filteredPriceHistory = priceHistory.filter((_, index) => {
+    if (currentPriceIndex === -1) return true; // Show all data if current point not found
+    return index >= Math.max(0, currentPriceIndex - 2); // Show 2 previous, current, and all future data points
+  });
+
+  const chartDataWithIndicator = filteredPriceHistory.map((point) => {
+    // Find the original index in the full priceHistory array
+    const originalIndex = priceHistory.findIndex((p) => p.date.getTime() === point.date.getTime());
+    if (originalIndex === currentPriceIndex) {
+      return {
+        ...point,
+        showVerticalLine: true,
+        verticalLineColor: "orange",
+        verticalLineThickness: 2,
+        labelComponent: () => (
+          <View className="translate-x-1 rounded-lg bg-orange-500 p-2">
+            <Text className="text-center text-xs font-medium text-white">NOW</Text>
+          </View>
+        ),
+      };
+    }
+    return point;
+  });
 
   return (
-    <View className="flex-1 bg-gray-50 pt-12">
-      <View className="mb-6 px-6">
-        <Text className="text-center text-2xl font-bold text-gray-800">
-          Day-Ahead Electricity Prices
-        </Text>
-        <Text className="mt-1 text-center text-lg text-gray-600">Belgium</Text>
-      </View>
-
+    <View className="flex-1 bg-orange-50 pt-6">
       {error && (
-        <View className="mx-6 mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
-          <Text className="text-center text-sm text-red-700">{error}</Text>
+        <View className="mx-6 mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
+          <Text className="text-center text-sm text-orange-700">{error}</Text>
         </View>
       )}
 
       {priceHistory.length > 0 ? (
         <View className="flex-1 px-4">
           {/* Statistics Cards */}
-          <View className="mb-6 flex-row justify-between px-2">
+          <View className="mb-2 flex-row justify-between px-2">
             <View className="mx-1 flex-1 rounded-lg bg-white p-3 shadow-sm">
               <Text className="text-center text-xs text-gray-500">MIN</Text>
               <Text className="text-center text-lg font-bold text-green-600">
@@ -147,14 +191,14 @@ export default function Index() {
               </Text>
             </View>
             <View className="mx-1 flex-1 rounded-lg bg-white p-3 shadow-sm">
-              <Text className="text-center text-xs text-gray-500">AVG</Text>
-              <Text className="text-center text-lg font-bold text-blue-600">
-                €{avgPrice.toFixed(2)}
+              <Text className="text-center text-xs text-gray-500">CURRENT</Text>
+              <Text className="text-center text-lg font-bold text-orange-600">
+                €{currentPrice.toFixed(2)}
               </Text>
             </View>
             <View className="mx-1 flex-1 rounded-lg bg-white p-3 shadow-sm">
               <Text className="text-center text-xs text-gray-500">MAX</Text>
-              <Text className="text-center text-lg font-bold text-red-600">
+              <Text className="text-center text-lg font-bold text-orange-700">
                 €{maxPrice.toFixed(2)}
               </Text>
             </View>
@@ -168,16 +212,26 @@ export default function Index() {
               <LineChart
                 width={chartWidth}
                 height={chartHeight}
-                data={priceHistory}
-                color="#4484B2"
+                data={chartDataWithIndicator}
+                color="#EA580C"
                 thickness={3}
                 isAnimated={true}
                 animationDuration={1200}
-                showVerticalLines={false}
+                showVerticalLines={true}
                 verticalLinesColor="#f0f0f0"
                 initialSpacing={10}
                 endSpacing={10}
-                noOfSections={6}
+                areaChart
+                startFillColor="#EA580C"
+                endFillColor="#FED7AA"
+                startOpacity={0.8}
+                endOpacity={0.3}
+                curved
+                curvature={1}
+                curveType={CurveType.QUADRATIC}
+                noOfSections={3}
+                scrollToEnd={false}
+                disableScroll={false}
                 yAxisColor="#e0e0e0"
                 xAxisColor="#e0e0e0"
                 rulesColor="#f5f5f5"
@@ -192,20 +246,32 @@ export default function Index() {
                   fontWeight: "500",
                 }}
                 yAxisLabelSuffix="€"
-                dataPointsRadius={4}
-                dataPointsColor="#4484B2"
-                focusEnabled={true}
-                showStripOnFocus={true}
-                stripColor="#4484B2"
-                stripOpacity={0.2}
-                stripWidth={2}
-                textShiftY={-8}
-                textShiftX={-10}
-                textColor="#333"
-                textFontSize={12}
-                yAxisOffset={0}
-                labelsExtraHeight={20}
+                dataPointsRadius={0}
+                dataPointsColor="#EA580C"
+                labelsExtraHeight={0}
                 xAxisTextNumberOfLines={2}
+                pointerConfig={{
+                  pointerStripHeight: chartHeight,
+                  pointerStripColor: "rgba(234, 88, 12, 0.2)",
+                  pointerStripWidth: 2,
+                  pointerColor: "#EA580C",
+                  radius: 5,
+                  pointerLabelWidth: -1,
+                  pointerLabelComponent: (items: any) => (
+                    <View
+                      style={{
+                        backgroundColor: "#EA580C",
+                        paddingHorizontal: 8,
+                        paddingVertical: 4,
+                        borderRadius: 4,
+                        transform: [{ translateX: -20 }, { translateY: -20 }],
+                      }}>
+                      <Text style={{ color: "white", fontSize: 11, fontWeight: "500" }}>
+                        €{items[0].value.toFixed(2)}
+                      </Text>
+                    </View>
+                  ),
+                }}
               />
             )}
           </View>
