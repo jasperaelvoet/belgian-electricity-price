@@ -1,6 +1,8 @@
 import "@/global.css";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { Settings } from "lucide-react-native";
+import { TouchableOpacity } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 SplashScreen.preventAutoHideAsync();
@@ -16,7 +18,17 @@ export default function RootLayout() {
       <Stack>
         <Stack.Screen
           name="index"
-          options={{ headerShown: true, title: "Day-Ahead Electricity Prices" }}></Stack.Screen>
+          options={{
+            headerShown: true,
+            title: "Day-Ahead Electricity Prices",
+            headerRight: () => (
+              <TouchableOpacity onPress={() => router.push("/settings")}>
+                <Settings size={24} color="#374151" />
+              </TouchableOpacity>
+            ),
+          }}
+        />
+        <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
       </Stack>
     </GestureHandlerRootView>
   );

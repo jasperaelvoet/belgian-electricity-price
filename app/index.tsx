@@ -23,11 +23,13 @@ export default function Index() {
   const [error, setError] = useState<string | null>(null);
   const [chartWidth, setChartWidth] = useState(0);
   const [chartHeight, setChartHeight] = useState(0);
+  const [pointerLabelWidth, setPointerLabelWidth] = useState(0);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    setChartWidth(width - 64);
-    setChartHeight(height - 96);
+    setChartWidth(width);
+    // Subtract space for statistics cards (~80px) and footer (~60px) plus some padding
+    setChartHeight(height - 200);
   };
 
   const fetchElectricityPrices = async () => {
@@ -98,7 +100,9 @@ export default function Index() {
       );
     } finally {
       setLoading(false);
-      SplashScreen.hideAsync();
+      setTimeout(() => {
+        SplashScreen.hideAsync();
+      }, 250);
     }
   };
 
@@ -147,10 +151,10 @@ export default function Index() {
   const currentPrice = currentDataPoint ? currentDataPoint.price : 0;
   const currentPriceIndex = currentDataPoint ? currentDataPoint.index : -1;
 
-  // Filter data to include 2 previous, current, and all future data points
+  // Filter data to include 3 previous, current, and all future data points
   const filteredPriceHistory = priceHistory.filter((_, index) => {
     if (currentPriceIndex === -1) return true; // Show all data if current point not found
-    return index >= Math.max(0, currentPriceIndex - 2); // Show 2 previous, current, and all future data points
+    return index >= Math.max(0, currentPriceIndex - 3); // Show 3 previous, current, and all future data points
   });
 
   const chartDataWithIndicator = filteredPriceHistory.map((point) => {
@@ -160,10 +164,10 @@ export default function Index() {
       return {
         ...point,
         showVerticalLine: true,
-        verticalLineColor: "orange",
+        verticalLineColor: "black",
         verticalLineThickness: 2,
         labelComponent: () => (
-          <View className="translate-x-1 rounded-lg bg-orange-500 p-2">
+          <View className="translate-x-1 rounded-lg bg-black p-2">
             <Text className="text-center text-xs font-medium text-white">NOW</Text>
           </View>
         ),
@@ -173,7 +177,7 @@ export default function Index() {
   });
 
   return (
-    <View className="flex-1 bg-orange-50 pt-6">
+    <View className="flex-1 bg-white pt-6">
       {error && (
         <View className="mx-6 mb-4 rounded-lg border border-orange-200 bg-orange-50 p-4">
           <Text className="text-center text-sm text-orange-700">{error}</Text>
@@ -181,7 +185,7 @@ export default function Index() {
       )}
 
       {priceHistory.length > 0 ? (
-        <View className="flex-1 px-4">
+        <View className="flex-1 px-4" onLayout={onLayout}>
           {/* Statistics Cards */}
           <View className="mb-2 flex-row justify-between px-2">
             <View className="mx-1 flex-1 rounded-lg bg-white p-3 shadow-sm">
@@ -204,77 +208,79 @@ export default function Index() {
             </View>
           </View>
 
-          {/* Chart Container */}
-          <View
-            className="mx-2 mb-6 flex flex-1 items-center justify-center rounded-xl bg-white shadow-sm"
-            onLayout={onLayout}>
-            {chartWidth > 0 && chartHeight > 0 && (
-              <LineChart
-                width={chartWidth}
-                height={chartHeight}
-                data={chartDataWithIndicator}
-                color="#EA580C"
-                thickness={3}
-                isAnimated={true}
-                animationDuration={1200}
-                showVerticalLines={true}
-                verticalLinesColor="#f0f0f0"
-                initialSpacing={10}
-                endSpacing={10}
-                areaChart
-                startFillColor="#EA580C"
-                endFillColor="#FED7AA"
-                startOpacity={0.8}
-                endOpacity={0.3}
-                curved
-                curvature={1}
-                curveType={CurveType.QUADRATIC}
-                noOfSections={3}
-                scrollToEnd={false}
-                disableScroll={false}
-                yAxisColor="#e0e0e0"
-                xAxisColor="#e0e0e0"
-                rulesColor="#f5f5f5"
-                yAxisTextStyle={{
-                  color: "#666",
-                  fontSize: 11,
-                  fontWeight: "500",
-                }}
-                xAxisLabelTextStyle={{
-                  color: "#666",
-                  fontSize: 9,
-                  fontWeight: "500",
-                }}
-                yAxisLabelSuffix="€"
-                dataPointsRadius={0}
-                dataPointsColor="#EA580C"
-                labelsExtraHeight={0}
-                xAxisTextNumberOfLines={2}
-                pointerConfig={{
-                  pointerStripHeight: chartHeight,
-                  pointerStripColor: "rgba(234, 88, 12, 0.2)",
-                  pointerStripWidth: 2,
-                  pointerColor: "#EA580C",
-                  radius: 5,
-                  pointerLabelWidth: -1,
-                  pointerLabelComponent: (items: any) => (
-                    <View
-                      style={{
-                        backgroundColor: "#EA580C",
-                        paddingHorizontal: 8,
-                        paddingVertical: 4,
-                        borderRadius: 4,
-                        transform: [{ translateX: -20 }, { translateY: -20 }],
-                      }}>
-                      <Text style={{ color: "white", fontSize: 11, fontWeight: "500" }}>
-                        €{items[0].value.toFixed(2)}
-                      </Text>
-                    </View>
-                  ),
-                }}
-              />
-            )}
-          </View>
+          {/* Chart */}
+          {chartWidth > 0 && chartHeight > 0 && (
+            <LineChart
+              width={chartWidth}
+              height={chartHeight}
+              data={chartDataWithIndicator}
+              color="#EA580C"
+              thickness={3}
+              isAnimated={true}
+              animationDuration={1200}
+              showVerticalLines={true}
+              verticalLinesColor="#f0f0f0"
+              initialSpacing={10}
+              endSpacing={10}
+              areaChart
+              startFillColor="#EA580C"
+              endFillColor="#FED7AA"
+              startOpacity1={1}
+              endOpacity1={1}
+              curved
+              curvature={1}
+              curveType={CurveType.QUADRATIC}
+              noOfSections={3}
+              scrollToEnd={false}
+              disableScroll={false}
+              yAxisColor="#e0e0e0"
+              xAxisColor="#e0e0e0"
+              rulesColor="#f5f5f5"
+              yAxisTextStyle={{
+                color: "#666",
+                fontSize: 11,
+                fontWeight: "500",
+              }}
+              xAxisLabelTextStyle={{
+                color: "#666",
+                fontSize: 9,
+                fontWeight: "500",
+              }}
+              yAxisLabelSuffix="€"
+              dataPointsRadius={0}
+              dataPointsColor="#EA580C"
+              labelsExtraHeight={0}
+              xAxisTextNumberOfLines={2}
+              pointerConfig={{
+                pointerStripHeight: chartHeight,
+                pointerStripColor: "rgba(0, 0, 0, 0.2)",
+                pointerStripWidth: 2,
+                pointerColor: "black",
+                autoAdjustPointerLabelPosition: true,
+                radius: 5,
+                pointerLabelWidth: -1,
+                pointerLabelComponent: (items: any) => (
+                  <View
+                    onLayout={(event) => {
+                      const { width } = event.nativeEvent.layout;
+                      setPointerLabelWidth(width);
+                    }}
+                    style={{
+                      backgroundColor: "black",
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 4,
+                      opacity: pointerLabelWidth > 0 ? 1 : 0,
+                      transform: [{ translateX: -pointerLabelWidth / 2 }, { translateY: -20 }],
+                    }}>
+                    <Text style={{ color: "white", fontSize: 11, fontWeight: "500" }}>
+                      €{items[0].value.toFixed(2)}
+                    </Text>
+                  </View>
+                ),
+              }}
+            />
+          )}
 
           {/* Footer Info */}
           <View className="px-4 pb-6">
