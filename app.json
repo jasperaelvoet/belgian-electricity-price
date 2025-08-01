@@ -12,8 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jasperaelvoet.electricityprice",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["background-fetch", "background-processing"]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -22,8 +21,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jasperaelvoet.electricityprice",
-      "permissions": ["RECEIVE_BOOT_COMPLETED", "WAKE_LOCK"]
+      "package": "com.jasperaelvoet.electricityprice"
     },
     "web": {
       "bundler": "metro"
