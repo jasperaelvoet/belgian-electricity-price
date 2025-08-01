@@ -1,3 +1,4 @@
+import { checkPriceThresholds, getCurrentPrice } from "@/lib/notificationService";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Dimensions, LayoutChangeEvent, Text, View } from "react-native";
@@ -94,6 +95,12 @@ export default function Index() {
       });
 
       setPriceHistory(formattedData);
+
+      // Check price thresholds for notifications
+      const currentPrice = getCurrentPrice(formattedData);
+      if (currentPrice !== null) {
+        checkPriceThresholds(currentPrice);
+      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unknown error occurred while fetching data."

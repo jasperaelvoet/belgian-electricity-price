@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jasperaelvoet.electricityprice",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["background-fetch", "background-processing"]
       }
     },
     "android": {
@@ -21,7 +22,8 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.jasperaelvoet.electricityprice"
+      "package": "com.jasperaelvoet.electricityprice",
+      "permissions": ["RECEIVE_BOOT_COMPLETED", "WAKE_LOCK"]
     },
     "web": {
       "bundler": "metro"
@@ -37,7 +39,20 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-background-task"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#3b82f6",
+          "defaultChannel": "default"
+        }
+      ],
+      [
+        "expo-background-fetch",
+        {
+          "minimumInterval": 15
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
