@@ -38,20 +38,6 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/icon.png",
-          "color": "#3b82f6",
-          "defaultChannel": "default"
-        }
-      ],
-      [
-        "expo-background-fetch",
-        {
-          "minimumInterval": 15
-        }
       ]
     ],
     "experiments": {
