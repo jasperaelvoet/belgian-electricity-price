@@ -1,7 +1,15 @@
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Dimensions, LayoutChangeEvent, Text, View } from "react-native";
-import { CurveType, LineChart } from "react-native-gifted-charts";
+import { Clock } from "lucide-react-native";
+import { useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  LayoutChangeEvent,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { LineChart } from "react-native-gifted-charts";
 
 interface PriceData {
   value: number;
@@ -24,6 +32,13 @@ export default function Index() {
   const [chartWidth, setChartWidth] = useState(0);
   const [chartHeight, setChartHeight] = useState(0);
   const [pointerLabelWidth, setPointerLabelWidth] = useState(0);
+  const [resetCounter, setResetCounter] = useState(0);
+  const [isNowVisible, setIsNowVisible] = useState(true);
+  const lastUpdatedRef = useRef<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const viewportWidthRef = useRef(0);
+  const scrollXRef = useRef(0);
+  const scrollRef = useRef<any>(null);
 
   const onLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -94,6 +109,8 @@ export default function Index() {
       });
 
       setPriceHistory(formattedData);
+      lastUpdatedRef.current = new Date();
+      setLastUpdated(lastUpdatedRef.current);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "An unknown error occurred while fetching data."
@@ -157,6 +174,10 @@ export default function Index() {
     return index >= Math.max(0, currentPriceIndex - 3); // Show 3 previous, current, and all future data points
   });
 
+  // Calculate the index of NOW within the filtered array
+  const startIndex = currentPriceIndex === -1 ? 0 : Math.max(0, currentPriceIndex - 3);
+  const filteredNowIndex = currentPriceIndex === -1 ? -1 : currentPriceIndex - startIndex;
+
   const chartDataWithIndicator = filteredPriceHistory.map((point) => {
     // Find the original index in the full priceHistory array
     const originalIndex = priceHistory.findIndex((p) => p.date.getTime() === point.date.getTime());
@@ -211,6 +232,8 @@ export default function Index() {
           {/* Chart */}
           {chartWidth > 0 && chartHeight > 0 && (
             <LineChart
+              key={`linechart-${resetCounter}-${currentPriceIndex}`}
+              scrollRef={scrollRef}
               width={chartWidth}
               height={chartHeight}
               data={chartDataWithIndicator}
@@ -222,15 +245,15 @@ export default function Index() {
               verticalLinesColor="#f0f0f0"
               initialSpacing={10}
               endSpacing={10}
+              spacing={50}
               areaChart
               startFillColor="#EA580C"
               endFillColor="#FED7AA"
               startOpacity1={1}
               endOpacity1={1}
-              curved
-              curvature={1}
-              curveType={CurveType.QUADRATIC}
-              noOfSections={3}
+              noOfSections={5}
+              mostNegativeValue={Math.min(0, minPrice)}
+              stepChart
               scrollToEnd={false}
               disableScroll={false}
               yAxisColor="#e0e0e0"
@@ -251,6 +274,26 @@ export default function Index() {
               dataPointsColor="#EA580C"
               labelsExtraHeight={0}
               xAxisTextNumberOfLines={2}
+              onScroll={(ev: any) => {
+                const x = ev.nativeEvent.contentOffset.x as number;
+                const viewport = (ev.nativeEvent.layoutMeasurement?.width as number) || 0;
+                if (viewport > 0) viewportWidthRef.current = viewport;
+                scrollXRef.current = x;
+
+                // Compute visibility of NOW
+                if (filteredNowIndex >= 0) {
+                  const INITIAL = 10; // must match initialSpacing prop
+                  const SPACING = 50; // must match spacing prop
+                  const nowX = INITIAL + SPACING * filteredNowIndex;
+                  const start = x;
+                  const end = x + (viewport || chartWidth);
+                  const tolerance = 12;
+                  const visible = nowX >= start - tolerance && nowX <= end + tolerance;
+                  if (visible !== isNowVisible) setIsNowVisible(visible);
+                } else if (!isNowVisible) {
+                  setIsNowVisible(true);
+                }
+              }}
               pointerConfig={{
                 pointerStripHeight: chartHeight,
                 pointerStripColor: "rgba(0, 0, 0, 0.2)",
@@ -282,13 +325,52 @@ export default function Index() {
             />
           )}
 
+          {/* Back to Now floating button */}
+          {priceHistory.length > 0 && chartWidth > 0 && chartHeight > 0 && !isNowVisible && (
+            <View
+              pointerEvents="box-none"
+              style={{ position: "absolute", right: 16, bottom: 90 }}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Go back to current time"
+                onPress={() => {
+                  if (!scrollRef.current) return;
+                  const INITIAL = 10; // must match initialSpacing prop
+                  const SPACING = 50; // must match spacing prop
+                  const nowX = filteredNowIndex >= 0 ? INITIAL + SPACING * filteredNowIndex : 0;
+                  const viewport = viewportWidthRef.current || chartWidth;
+                  const targetX = Math.max(0, nowX - viewport / 2);
+                  try {
+                    scrollRef.current.scrollTo({ x: targetX, animated: true });
+                  } catch {}
+                }}
+                activeOpacity={0.8}
+                style={{
+                  backgroundColor: "#EA580C",
+                  borderRadius: 24,
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOpacity: 0.15,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowRadius: 6,
+                  elevation: 2,
+                }}>
+                <Clock size={18} color="white" />
+                <Text style={{ color: "white", fontWeight: "700", marginLeft: 8 }}>Now</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* Footer Info */}
           <View className="px-4 pb-6">
             <Text className="text-center text-xs text-gray-500">
               Prices shown in €/MWh • Data from Elia Grid
             </Text>
             <Text className="mt-1 text-center text-xs text-gray-400">
-              Updated: {new Date().toLocaleTimeString()}
+              Updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : "—"}
             </Text>
           </View>
         </View>

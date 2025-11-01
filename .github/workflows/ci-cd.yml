@@ -15,16 +15,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set GRADLE_HOME
-        run: echo "GRADLE_HOME=/Volumes/External/gradle" >> $GITHUB_ENV
-
-      - name: Set ANDROID_SDK_ROOT
-        run: echo "ANDROID_SDK_ROOT=/Volumes/External/android" >> $GITHUB_ENV
-
       - uses: actions/setup-java@v4
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: "21"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -77,7 +71,7 @@ jobs:
           echo "cache-key=prebuild-$(bunx @expo/fingerprint@latest ./ | jq -r '.hash')" >> $GITHUB_OUTPUT
 
       - name: Reset iOS simulators
-        run: SNAPSHOT_FORCE_DELETE=yes fastlane snapshot reset_simulators --ios_version 18.5
+        run: SNAPSHOT_FORCE_DELETE=yes fastlane snapshot reset_simulators --ios_version 26.0
 
       - name: Cache prebuild
         id: prebuild-cache-restore
@@ -143,7 +137,7 @@ jobs:
         if: matrix.platform == 'android'
         with:
           distribution: "temurin"
-          java-version: "17"
+          java-version: "21"
 
       - name: Setup Android SDK
         if: matrix.platform == 'android'
